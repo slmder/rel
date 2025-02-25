@@ -26,12 +26,12 @@ func TestSelectBuilder_ToSQL(t *testing.T) {
 		{
 			name:     "SELECT with WHERE",
 			builder:  Select("id").From("users").Where("age > %d", 18),
-			expected: "SELECT id FROM users WHERE (age > 18)",
+			expected: "SELECT id FROM users WHERE age > 18",
 		},
 		{
 			name:     "SELECT with multiple WHERE",
 			builder:  Select("id").From("users").Where("age > %d", 18).AndWhere("status = %s", "'active'"),
-			expected: "SELECT id FROM users WHERE (age > 18) AND (status = 'active')",
+			expected: "SELECT id FROM users WHERE age > 18 AND status = 'active'",
 		},
 		{
 			name:     "SELECT with JOIN",
@@ -46,7 +46,7 @@ func TestSelectBuilder_ToSQL(t *testing.T) {
 		{
 			name:     "SELECT with HAVING",
 			builder:  Select("category", "COUNT(*)").From("products").GroupBy("category").Having("COUNT(*) > 10"),
-			expected: "SELECT category, COUNT(*) FROM products GROUP BY category HAVING (COUNT(*) > 10)",
+			expected: "SELECT category, COUNT(*) FROM products GROUP BY category HAVING COUNT(*) > 10",
 		},
 		{
 			name:     "SELECT with ORDER BY",

@@ -1,4 +1,4 @@
-package db
+package rel
 
 import (
 	"fmt"
@@ -16,26 +16,24 @@ func scanRow[T any](scan scanFunc, m *Metadata[T], dst *T) error {
 	return scan(pointers...)
 }
 
-// scanPK scans only primary key fields using dst fields as a destination.
-func scanPK[T any](scan scanFunc, m *Metadata[T], dst *T) error {
-	dest, err := getFieldsPointers[T](m.PKColumns().Names(), m, dst)
-	if err != nil {
-		return err
-	}
-	return scan(dest...)
-}
-
 // getFieldsPointers returns pointers to fields of the struct.
 func getFieldsPointers[T any](fields []string, meta *Metadata[T], entity *T) ([]any, error) {
 	v := reflect.ValueOf(entity)
 
 	// If a pointer is passed, we get the value it points to.
 	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil, fmt.Errorf("nil entity")
+		}
 		v = v.Elem()
 	}
 
 	if v.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("entitySerialID must be a struct or pointer to a struct")
+		return nil, fmt.Errorf("entity must be a struct or pointer to a struct")
+	}
+
+	if meta.columnsMap == nil {
+		return nil, fmt.Errorf("metadata not initialized")
 	}
 
 	result := make([]any, len(fields))

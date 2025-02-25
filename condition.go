@@ -1,4 +1,4 @@
-package db
+package rel
 
 import (
 	"fmt"
@@ -48,62 +48,106 @@ func (c Cond) Split() ([]any, []string) {
 			case len(e.arg) < 1:
 				expr = append(expr, column+" IS NULL")
 			default:
-				expr = append(expr, column+" = "+ArgsAdd(args, e.arg[0]))
+				if i, ok := e.arg[0].(Identifier); ok {
+					expr = append(expr, column+" = "+i.Quoted())
+					continue
+				}
+				expr = append(expr, column+" = "+ArgsAdd(&args, e.arg[0]))
 			}
 		case opNeq:
 			switch {
 			case len(e.arg) < 1:
-				expr = append(expr, column+" NOT IS NULL")
+				expr = append(expr, column+" IS NOT NULL")
 			default:
-				expr = append(expr, column+" <> "+ArgsAdd(args, e.arg[0]))
+				if i, ok := e.arg[0].(Identifier); ok {
+					expr = append(expr, column+" <> "+i.Quoted())
+					continue
+				}
+				expr = append(expr, column+" <> "+ArgsAdd(&args, e.arg[0]))
 			}
 		case opIn:
 			var in []string
 			for _, a := range e.arg {
-				in = append(in, ArgsAdd(args, a))
+				in = append(in, ArgsAdd(&args, a))
 			}
 			expr = append(expr, column+" IN ("+strings.Join(in, ",")+")")
 		case opNotIn:
 			var in []string
 			for _, a := range e.arg {
-				in = append(in, ArgsAdd(args, a))
+				in = append(in, ArgsAdd(&args, a))
 			}
 			expr = append(expr, column+" NOT IN ("+strings.Join(in, ",")+")")
 		case opAny:
-			expr = append(expr, column+" = ANY "+ArgsAdd(args, pq.Array(e.arg)))
+			if i, ok := e.arg[0].(Identifier); ok {
+				expr = append(expr, column+" = ANY "+i.Quoted())
+				continue
+			}
+			expr = append(expr, column+" = ANY "+ArgsAdd(&args, pq.Array(e.arg)))
 		case opNotAll:
-			expr = append(expr, column+" <> ALL "+ArgsAdd(args, pq.Array(e.arg)))
+			if i, ok := e.arg[0].(Identifier); ok {
+				expr = append(expr, column+" <> ALL "+i.Quoted())
+				continue
+			}
+			expr = append(expr, column+" <> ALL "+ArgsAdd(&args, pq.Array(e.arg)))
 		case opIsNull:
 			expr = append(expr, column+" IS NULL")
 		case opNotNull:
 			expr = append(expr, column+" IS NOT NULL")
 		case opGt:
-			expr = append(expr, column+" > "+ArgsAdd(args, e.arg[0]))
+			if i, ok := e.arg[0].(Identifier); ok {
+				expr = append(expr, column+" > "+i.Quoted())
+				continue
+			}
+			expr = append(expr, column+" > "+ArgsAdd(&args, e.arg[0]))
 		case opGte:
-			expr = append(expr, column+" >= "+ArgsAdd(args, e.arg[0]))
+			if i, ok := e.arg[0].(Identifier); ok {
+				expr = append(expr, column+" >= "+i.Quoted())
+				continue
+			}
+			expr = append(expr, column+" >= "+ArgsAdd(&args, e.arg[0]))
 		case opLt:
 			if i, ok := e.arg[0].(Identifier); ok {
 				expr = append(expr, column+" < "+i.Quoted())
 				continue
 			}
-			expr = append(expr, column+" < "+ArgsAdd(args, e.arg[0]))
+			expr = append(expr, column+" < "+ArgsAdd(&args, e.arg[0]))
 		case opLte:
 			if i, ok := e.arg[0].(Identifier); ok {
 				expr = append(expr, column+" <= "+i.Quoted())
 				continue
 			}
-			expr = append(expr, column+" <= "+ArgsAdd(args, e.arg[0]))
+			expr = append(expr, column+" <= "+ArgsAdd(&args, e.arg[0]))
 		case opBetween:
-			expr = append(expr, column+" BETWEEN "+ArgsAdd(args, e.arg[0])+" AND "+ArgsAdd(args, e.arg[1]))
+			a, aok := e.arg[0].(Identifier)
+			b, bok := e.arg[1].(Identifier)
+			if aok && bok {
+				expr = append(expr, column+" BETWEEN "+a.Quoted()+" AND "+b.Quoted())
+				continue
+			}
+			expr = append(expr, column+" BETWEEN "+ArgsAdd(&args, e.arg[0])+" AND "+ArgsAdd(&args, e.arg[1]))
 		case opLike:
-			expr = append(expr, column+" LIKE "+ArgsAdd(args, "%"+fmt.Sprint(e.arg[0])+"%"))
+			if len(e.arg) < 1 || e.arg[0] == nil {
+				expr = append(expr, column+" = ''")
+				continue
+			}
+			expr = append(expr, column+" LIKE "+ArgsAdd(&args, "%"+fmt.Sprint(e.arg[0])+"%"))
 		case opLikeLower:
-			expr = append(expr, "LOWER("+column+") LIKE "+ArgsAdd(args, strings.ToLower("%"+fmt.Sprint(e.arg[0])+"%")))
+			if len(e.arg) < 1 || e.arg[0] == nil {
+				expr = append(expr, column+" = ''")
+				continue
+			}
+			expr = append(expr, "LOWER("+column+") LIKE "+ArgsAdd(&args, strings.ToLower("%"+fmt.Sprint(e.arg[0])+"%")))
 		case opUnknown:
 		}
 	}
 
 	return args, expr
+}
+
+// ArgsAdd adds an argument to the slice and returns a placeholder for it.
+func ArgsAdd(args *[]any, arg any) string {
+	*args = append(*args, arg)
+	return fmt.Sprintf("$%d", len(*args))
 }
 
 type Expr struct {
@@ -167,11 +211,10 @@ func IsNull(column string) Expr {
 	}
 }
 
-func NotNull(column string, arg any) Expr {
+func NotNull(column string) Expr {
 	return Expr{
 		op:     opNotNull,
 		column: column,
-		arg:    []any{arg},
 	}
 }
 

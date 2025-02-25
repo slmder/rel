@@ -1,4 +1,4 @@
-package db
+package rel
 
 import (
 	"errors"
@@ -98,6 +98,9 @@ func NewMeta[T any](pkStrategy PKStrategy, pk ...string) (*Metadata[T], error) {
 		return nil, fmt.Errorf("build columns meta: %w", err)
 	}
 	m.pkColumns = pkColumns(m.columns)
+	if len(m.pkColumns) == 0 {
+		return nil, errors.New("no primary key columns found")
+	}
 	m.insertColumns = insertColumns(m.columns, pkStrategy)
 	m.updateColumns = updateColumns(m.columns)
 	m.columnsMap = columnsMetaMap(m.columns)

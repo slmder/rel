@@ -282,7 +282,7 @@ func (b *SelectBuilder) ToSQL() string { // nolint:funlen
 	}
 
 	if len(b.whereExpr) > 0 {
-		out.WriteString(" WHERE " + wrapExpressions(b.whereExpr, " AND "))
+		out.WriteString(" WHERE " + strings.Join(b.whereExpr, " AND "))
 	}
 
 	if len(b.groupByExpr) > 0 {
@@ -290,7 +290,7 @@ func (b *SelectBuilder) ToSQL() string { // nolint:funlen
 	}
 
 	if len(b.havingExpr) > 0 {
-		out.WriteString(" HAVING " + wrapExpressions(b.havingExpr, ", "))
+		out.WriteString(" HAVING " + strings.Join(b.havingExpr, ", "))
 	}
 
 	if len(b.unionExpr) > 0 {

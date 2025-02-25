@@ -1,4 +1,4 @@
-package db
+package rel
 
 type PKStrategy int
 

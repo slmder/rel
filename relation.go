@@ -1,4 +1,4 @@
-package db
+package rel
 
 import (
 	"context"
@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
+	"github.com/lib/pq"
 	"github.com/slmder/rel/qbuilder"
 )
 
@@ -26,13 +28,13 @@ type Relation[T any] struct {
 	// primary key strategy
 	pkStrategy PKStrategy
 	// prebuilt queries
-	// getOneQ is a prebuilt query to get a single entitySerialID by primary key
+	// getOneQ is a prebuilt query to get a single entity by primary key
 	getOneQ string
-	// insertQ is a prebuilt query to insert an entitySerialID
+	// insertQ is a prebuilt query to insert an entity
 	insertQ string
-	// updateQ is a prebuilt query to update an entitySerialID
+	// updateQ is a prebuilt query to update an entity
 	updateQ string
-	// deleteQ is a prebuilt query to delete an entitySerialID
+	// deleteQ is a prebuilt query to delete an entity
 	deleteQ string
 	// findByQ is a prebuilt query to find entities by operator
 	findByQ qbuilder.SelectBuilder
@@ -41,27 +43,27 @@ type Relation[T any] struct {
 // NewRelation creates a new Relation instance for the given type and table.
 // Relation requires a primary key to be specified at least one column (by default it is 'id').
 func NewRelation[T any](name string, db *sql.DB, opts ...Option[T]) (*Relation[T], error) {
-	d := &Relation[T]{
-		name: name,
+	rel := &Relation[T]{
+		name: pq.QuoteIdentifier(strings.Trim(name, `"`)),
 		DB:   db,
 		pk:   []string{defaultPkColumn},
 	}
 	for _, o := range opts {
-		o(d)
+		o(rel)
 	}
 	var err error
-	d.M, err = NewMeta[T](d.pkStrategy, d.pk...)
+	rel.M, err = NewMeta[T](rel.pkStrategy, rel.pk...)
 	if err != nil {
 		return nil, fmt.Errorf("create '%s' meta: %w", name, err)
 	}
 
-	d.insertQ = buildInsertQuery(name, d.M)
-	d.updateQ = buildUpdateQuery(name, d.M)
-	d.deleteQ = buildDeleteQuery(name, d.M)
-	d.getOneQ = buildGetOneQuery(name, d.M)
-	d.findByQ = buildFindByQuery(name, d.M)
+	rel.insertQ = buildInsertQuery(rel.name, rel.M)
+	rel.updateQ = buildUpdateQuery(rel.name, rel.M)
+	rel.deleteQ = buildDeleteQuery(rel.name, rel.M)
+	rel.getOneQ = buildGetOneQuery(rel.name, rel.M)
+	rel.findByQ = buildFindByQuery(rel.name, rel.M)
 
-	return d, nil
+	return rel, nil
 }
 
 // Rel returns the table name
@@ -69,17 +71,17 @@ func (r *Relation[T]) Rel() string {
 	return r.name
 }
 
-// InsertArgsFrom returns arguments for insert for the given entitySerialID
+// InsertArgsFrom returns arguments for insert for the given entity
 func (r *Relation[T]) InsertArgsFrom(e *T) []any {
 	return getFieldsValues(r.M.InsertColumns().Names(), r.M, e)
 }
 
-// UpdateArgsFrom returns arguments for update for the given entitySerialID
+// UpdateArgsFrom returns arguments for update for the given entity
 func (r *Relation[T]) UpdateArgsFrom(e *T) []any {
 	return getFieldsValues(r.M.UpdateColumns().Names(), r.M, e)
 }
 
-// Insert inserts an entitySerialID
+// Insert inserts an entity
 func (r *Relation[T]) Insert(ctx context.Context, entity *T) error {
 	args := getFieldsValues(r.M.InsertColumns().Names(), r.M, entity)
 	row := r.DB.QueryRowContext(ctx, r.insertQ, args...)
@@ -87,7 +89,7 @@ func (r *Relation[T]) Insert(ctx context.Context, entity *T) error {
 	return scanRow(row.Scan, r.M, entity)
 }
 
-// Update updates an entitySerialID
+// Update updates an entity
 func (r *Relation[T]) Update(ctx context.Context, entity *T) error {
 	args := getFieldsValues(r.M.UpdateColumns().Names(), r.M, entity)
 	args = append(args, getFieldsValues(r.M.PKColumns().Names(), r.M, entity)...)
@@ -96,8 +98,11 @@ func (r *Relation[T]) Update(ctx context.Context, entity *T) error {
 	return scanRow(row.Scan, r.M, entity)
 }
 
-// Delete deletes an entitySerialID by given id
+// Delete deletes an entity by given id
 func (r *Relation[T]) Delete(ctx context.Context, id ...any) error {
+	if len(id) != len(r.M.PKColumns()) {
+		return fmt.Errorf("invalid number of primary key columns: %d", len(id))
+	}
 	_, err := r.DB.ExecContext(ctx, r.deleteQ, id...)
 
 	if err != nil {
@@ -106,9 +111,12 @@ func (r *Relation[T]) Delete(ctx context.Context, id ...any) error {
 	return nil
 }
 
-// Find finds single entitySerialID by given id
+// Find finds single entity by given id
 func (r *Relation[T]) Find(ctx context.Context, id ...any) (T, error) {
 	var entity T
+	if len(id) != len(r.M.PKColumns()) {
+		return entity, fmt.Errorf("invalid number of primary key columns: %d", len(id))
+	}
 	row := r.DB.QueryRowContext(ctx, r.getOneQ, id...)
 
 	return entity, r.Scan(row.Scan, &entity)
@@ -143,7 +151,7 @@ func (r *Relation[T]) FindBy(ctx context.Context, cond Cond) ([]T, error) {
 	return items, nil
 }
 
-// FindOneBy finds single entitySerialID by given operator
+// FindOneBy finds single entity by given operator
 func (r *Relation[T]) FindOneBy(ctx context.Context, cond Cond) (T, error) {
 	var entity T
 	query := r.findByQ.Copy()
@@ -160,18 +168,12 @@ func (r *Relation[T]) FindOneBy(ctx context.Context, cond Cond) (T, error) {
 	return entity, r.Scan(row.Scan, &entity)
 }
 
-// Scan scans a single row into the entitySerialID
+// Scan scans a single row into the entity
 func (r *Relation[T]) Scan(sf scanFunc, dst *T) error {
 	return scanRow(sf, r.M, dst)
 }
 
-// ArgsAdd adds an argument to the slice and returns a placeholder for it.
-func ArgsAdd(args []any, arg any) string {
-	args = append(args, arg)
-	return fmt.Sprintf("$%d", len(args))
-}
-
-// buildInsertQuery prebuilds a query to insert an entitySerialID
+// buildInsertQuery prebuilds a query to insert an entity
 func buildInsertQuery[T any](rel string, m *Metadata[T]) string {
 	qb := qbuilder.Insert(rel)
 	qb.Columns(m.InsertColumns().Identifiers()...)
@@ -181,7 +183,7 @@ func buildInsertQuery[T any](rel string, m *Metadata[T]) string {
 	return qb.ToSQL()
 }
 
-// buildUpdateQuery prebuilds a query to update an entitySerialID
+// buildUpdateQuery prebuilds a query to update an entity
 func buildUpdateQuery[T any](rel string, m *Metadata[T]) string {
 	qb := qbuilder.Update(rel)
 
@@ -200,7 +202,7 @@ func buildUpdateQuery[T any](rel string, m *Metadata[T]) string {
 	return qb.ToSQL()
 }
 
-// buildDeleteQuery prebuilds a query to delete an entitySerialID
+// buildDeleteQuery prebuilds a query to delete an entity
 func buildDeleteQuery[T any](rel string, m *Metadata[T]) string {
 	qb := qbuilder.Delete(rel)
 
@@ -211,13 +213,13 @@ func buildDeleteQuery[T any](rel string, m *Metadata[T]) string {
 	return qb.ToSQL()
 }
 
-// buildGetOneQuery prebuilds a query to get a single entitySerialID
+// buildGetOneQuery prebuilds a query to get a single entity
 func buildGetOneQuery[T any](rel string, m *Metadata[T]) string {
 	qb := qbuilder.Select(m.Columns().Identifiers()...)
 	qb.From(rel)
 
-	for _, col := range m.PKColumns() {
-		qb.Where(col.Identifier(), col.name)
+	for i, col := range m.PKColumns() {
+		qb.AndWhere(col.Identifier() + " = $" + strconv.Itoa(i+1))
 	}
 
 	return qb.Limit(1).ToSQL()
@@ -241,7 +243,7 @@ func getFieldsValues[T any](fields []string, meta *Metadata[T], entity *T) []any
 	}
 
 	if v.Kind() != reflect.Struct {
-		panic("entitySerialID must be a struct or pointer to a struct")
+		panic("entity must be a struct or pointer to a struct")
 	}
 
 	result := make([]any, len(fields))

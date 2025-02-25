@@ -1,4 +1,4 @@
-package db
+package rel
 
 type Option[T any] func(*Relation[T])
 
