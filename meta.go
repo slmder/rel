@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/lib/pq"
 )
+
+var metaCache sync.Map
 
 // ColumnMeta represents a column metadata.
 type ColumnMeta struct {
@@ -44,18 +47,37 @@ func (m ListColumnMeta) Names() []string {
 // Metadata represents struct metadata.
 type Metadata[T any] struct {
 	// Primary key strategy (sequence or generated).
-	PkStrategy PKStrategy
-	// All Columns.
-	Columns ListColumnMeta
+	pkStrategy PKStrategy
+	// All columns.
+	columns ListColumnMeta
 	// Primary key columns.
-	PKColumns ListColumnMeta
+	pkColumns ListColumnMeta
 	// columns for insert according to pk strategy.
-	InsertColumns ListColumnMeta
+	insertColumns ListColumnMeta
 	// columns for update (all columns except primary key).
-	UpdateColumns ListColumnMeta
-
-	// Map of Columns by name for quick access.
+	updateColumns ListColumnMeta
+	// Map of columns by name for quick access.
 	columnsMap map[string]*ColumnMeta
+}
+
+func (m Metadata[T]) PkStrategy() PKStrategy {
+	return m.pkStrategy
+}
+
+func (m Metadata[T]) Columns() ListColumnMeta {
+	return m.columns
+}
+
+func (m Metadata[T]) PKColumns() ListColumnMeta {
+	return m.pkColumns
+}
+
+func (m Metadata[T]) InsertColumns() ListColumnMeta {
+	return m.insertColumns
+}
+
+func (m Metadata[T]) UpdateColumns() ListColumnMeta {
+	return m.updateColumns
 }
 
 // NewMeta creates a new Metadata instance for the given T type.
@@ -63,19 +85,24 @@ func NewMeta[T any](pkStrategy PKStrategy, pk ...string) (*Metadata[T], error) {
 	if len(pk) == 0 {
 		return nil, errors.New("no primary key specified")
 	}
-	m := &Metadata[T]{
-		PkStrategy: pkStrategy,
+
+	typeName := reflect.TypeOf((*T)(nil)).Elem().String()
+	if cached, ok := metaCache.Load(typeName); ok {
+		return cached.(*Metadata[T]), nil
 	}
+
+	m := &Metadata[T]{pkStrategy: pkStrategy}
 	var err error
-	m.Columns, err = columnsMeta[T](pk...)
+	m.columns, err = columnsMeta[T](pk...)
 	if err != nil {
 		return nil, fmt.Errorf("build columns meta: %w", err)
 	}
-	m.PKColumns = pkColumns(m.Columns)
-	m.InsertColumns = insertColumns(m.Columns, pkStrategy)
-	m.UpdateColumns = updateColumns(m.Columns)
+	m.pkColumns = pkColumns(m.columns)
+	m.insertColumns = insertColumns(m.columns, pkStrategy)
+	m.updateColumns = updateColumns(m.columns)
+	m.columnsMap = columnsMetaMap(m.columns)
 
-	m.columnsMap = columnsMetaMap(m.Columns)
+	metaCache.Store(typeName, m)
 
 	return m, nil
 }
@@ -102,7 +129,7 @@ func columnsMeta[T any](pk ...string) ([]*ColumnMeta, error) {
 			field := t.Field(i)
 			fieldPath := append(parentPath, i)
 
-			// check if the field is anonymous struct
+			// check if the column is anonymous struct
 			if field.Anonymous && field.Type.Kind() == reflect.Struct {
 				collectMeta(field.Type, fieldPath)
 				continue
@@ -138,7 +165,7 @@ func columnsMetaMap(columns []*ColumnMeta) map[string]*ColumnMeta {
 	return cmm
 }
 
-// pkColumns returns primary key Columns.
+// pkColumns returns primary key columns.
 func pkColumns(columns []*ColumnMeta) ListColumnMeta {
 	return filter(columns, func(cm *ColumnMeta) bool {
 		return cm.pk

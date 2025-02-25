@@ -15,9 +15,9 @@ type DeleteBuilder struct {
 	returning []string
 }
 
-func Delete(rel string) *DeleteBuilder {
+func Delete(from string) *DeleteBuilder {
 	builder := DeleteBuilder{}
-	return builder.Delete(rel)
+	return builder.Delete(from)
 }
 
 func (b *DeleteBuilder) Delete(from string) *DeleteBuilder {
@@ -50,9 +50,6 @@ func (b *DeleteBuilder) ResetUsing() *DeleteBuilder {
 }
 
 func (b *DeleteBuilder) Where(expr string, a ...interface{}) *DeleteBuilder {
-	if len(b.whereExpr) > 0 {
-		b.whereExpr = []string{}
-	}
 	return b.AndWhere(expr, a...)
 }
 
@@ -79,41 +76,19 @@ func (b *DeleteBuilder) ToSQL() string {
 	out.Grow(deleteBufferInitialGrowBytes)
 	out.WriteString("DELETE FROM ")
 	out.WriteString(b.tableName)
-	comma := ", "
 	if b.alias != "" {
 		out.WriteString(" AS ")
 		out.WriteString(b.alias)
 	}
 	if len(b.usingExpr) > 0 {
-		out.WriteString(" USING ")
-		out.WriteString(b.usingExpr[0])
-		for _, s := range b.usingExpr[1:] {
-			out.WriteString(comma)
-			out.WriteString(s)
-		}
+		out.WriteString(" USING " + strings.Join(b.usingExpr, ", "))
 	}
 	if len(b.whereExpr) > 0 {
-		and := " AND "
-		out.WriteString(" WHERE ")
-		out.WriteString("(")
-		out.WriteString("(")
-		out.WriteString(b.whereExpr[0])
-		out.WriteString(")")
-		for _, s := range b.whereExpr[1:] {
-			out.WriteString(and)
-			out.WriteString("(")
-			out.WriteString(s)
-			out.WriteString(")")
-		}
-		out.WriteString(")")
+		out.WriteString(" WHERE " + strings.Join(b.whereExpr, " AND "))
 	}
 	if len(b.returning) > 0 {
-		out.WriteString(" RETURNING ")
-		out.WriteString(b.returning[0])
-		for _, s := range b.returning[1:] {
-			out.WriteString(comma)
-			out.WriteString(s)
-		}
+		out.WriteString(" RETURNING " + strings.Join(b.returning, ", "))
 	}
+
 	return out.String()
 }

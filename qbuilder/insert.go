@@ -99,13 +99,18 @@ func (b *InsertBuilder) ToSQL() string {
 	}
 
 	if b.conflictTarget != "" {
-		out.WriteString(" ON CONFLICT ")
+		out.WriteString(" ON CONFLICT")
 		if b.conflictConstraint {
-			out.WriteString("ON CONSTRAINT ")
+			out.WriteString(" ON CONSTRAINT ")
+		} else {
+			out.WriteString(" (")
 		}
-		out.WriteString("(")
 		out.WriteString(b.conflictTarget)
-		out.WriteString(") ")
+		if b.conflictConstraint {
+			out.WriteString(" ")
+		} else {
+			out.WriteString(") ")
+		}
 		out.WriteString(b.conflictAction)
 		if len(b.conflictSet) > 0 {
 			out.WriteString(" SET ")

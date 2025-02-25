@@ -9,7 +9,7 @@ type scanFunc func(dest ...any) error
 
 // scanRow scans all struct fields using dst fields as a destination.
 func scanRow[T any](scan scanFunc, m *Metadata[T], dst *T) error {
-	pointers, err := getFieldsPointers[T](m.Columns.Names(), m, dst)
+	pointers, err := getFieldsPointers[T](m.Columns().Names(), m, dst)
 	if err != nil {
 		return err
 	}
@@ -18,7 +18,7 @@ func scanRow[T any](scan scanFunc, m *Metadata[T], dst *T) error {
 
 // scanPK scans only primary key fields using dst fields as a destination.
 func scanPK[T any](scan scanFunc, m *Metadata[T], dst *T) error {
-	dest, err := getFieldsPointers[T](m.PKColumns.Names(), m, dst)
+	dest, err := getFieldsPointers[T](m.PKColumns().Names(), m, dst)
 	if err != nil {
 		return err
 	}
@@ -35,11 +35,11 @@ func getFieldsPointers[T any](fields []string, meta *Metadata[T], entity *T) ([]
 	}
 
 	if v.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("entity must be a struct or pointer to a struct")
+		return nil, fmt.Errorf("entitySerialID must be a struct or pointer to a struct")
 	}
 
 	result := make([]any, len(fields))
-	// Retrieving field pointers.
+	// Retrieving column pointers.
 	for i, name := range fields {
 		if fieldInfo, found := meta.columnsMap[name]; found {
 			fieldValue := v
@@ -48,7 +48,7 @@ func getFieldsPointers[T any](fields []string, meta *Metadata[T], entity *T) ([]
 			}
 			result[i] = fieldValue.Addr().Interface()
 		} else {
-			return nil, fmt.Errorf("field not found: %s", name)
+			return nil, fmt.Errorf("column not found: %s", name)
 		}
 	}
 

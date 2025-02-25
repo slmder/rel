@@ -41,7 +41,7 @@ func (c Cond) Split() ([]any, []string) {
 	var expr []string
 
 	for _, e := range c {
-		column := pq.QuoteIdentifier(e.field)
+		column := pq.QuoteIdentifier(e.column)
 		switch e.op {
 		case opEq:
 			switch {
@@ -107,126 +107,126 @@ func (c Cond) Split() ([]any, []string) {
 }
 
 type Expr struct {
-	op    operator
-	field string
-	arg   []any
+	op     operator
+	column string
+	arg    []any
 }
 
-func Eq(field string, arg any) Expr {
+func Eq(column string, arg any) Expr {
 	return Expr{
-		op:    opEq,
-		field: field,
-		arg:   []any{arg},
+		op:     opEq,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func Neq(field string, arg any) Expr {
+func Neq(column string, arg any) Expr {
 	return Expr{
-		op:    opNeq,
-		field: field,
-		arg:   []any{arg},
+		op:     opNeq,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func In(field string, args ...any) Expr {
+func In(column string, args ...any) Expr {
 	return Expr{
-		op:    opIn,
-		field: field,
-		arg:   args,
+		op:     opIn,
+		column: column,
+		arg:    args,
 	}
 }
 
-func NotIn(field string, args ...any) Expr {
+func NotIn(column string, args ...any) Expr {
 	return Expr{
-		op:    opNotIn,
-		field: field,
-		arg:   args,
+		op:     opNotIn,
+		column: column,
+		arg:    args,
 	}
 }
 
-func Any(field string, args []any) Expr {
+func Any(column string, args []any) Expr {
 	return Expr{
-		op:    opAny,
-		field: field,
-		arg:   args,
+		op:     opAny,
+		column: column,
+		arg:    args,
 	}
 }
 
-func NotAny(field string, args []any) Expr {
+func NotAny(column string, args []any) Expr {
 	return Expr{
-		op:    opNotAll,
-		field: field,
-		arg:   args,
+		op:     opNotAll,
+		column: column,
+		arg:    args,
 	}
 }
 
-func IsNull(field string) Expr {
+func IsNull(column string) Expr {
 	return Expr{
-		op:    opIsNull,
-		field: field,
+		op:     opIsNull,
+		column: column,
 	}
 }
 
-func NotNull(field string, arg any) Expr {
+func NotNull(column string, arg any) Expr {
 	return Expr{
-		op:    opNotNull,
-		field: field,
-		arg:   []any{arg},
+		op:     opNotNull,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func Gt(field string, arg any) Expr {
+func Gt(column string, arg any) Expr {
 	return Expr{
-		op:    opGt,
-		field: field,
-		arg:   []any{arg},
+		op:     opGt,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func Gte(field string, arg any) Expr {
+func Gte(column string, arg any) Expr {
 	return Expr{
-		op:    opGte,
-		field: field,
-		arg:   []any{arg},
+		op:     opGte,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func Lt(field string, arg any) Expr {
+func Lt(column string, arg any) Expr {
 	return Expr{
-		op:    opLt,
-		field: field,
-		arg:   []any{arg},
+		op:     opLt,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func Lte(field string, arg any) Expr {
+func Lte(column string, arg any) Expr {
 	return Expr{
-		op:    opLte,
-		field: field,
-		arg:   []any{arg},
+		op:     opLte,
+		column: column,
+		arg:    []any{arg},
 	}
 }
 
-func Between(field string, a, b any) Expr {
+func Between(column string, a, b any) Expr {
 	return Expr{
-		op:    opBetween,
-		field: field,
-		arg:   []any{a, b},
+		op:     opBetween,
+		column: column,
+		arg:    []any{a, b},
 	}
 }
 
-func Like(field string, a string) Expr {
+func Like(column string, a string) Expr {
 	return Expr{
-		op:    opLike,
-		field: field,
-		arg:   []any{a},
+		op:     opLike,
+		column: column,
+		arg:    []any{a},
 	}
 }
 
-func LikeLower(field string, a string) Expr {
+func LikeLower(column string, a string) Expr {
 	return Expr{
-		op:    opLikeLower,
-		field: field,
-		arg:   []any{a},
+		op:     opLikeLower,
+		column: column,
+		arg:    []any{a},
 	}
 }

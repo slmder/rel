@@ -8,11 +8,12 @@ import (
 const updateBufferInitialGrowBytes = 200
 
 type UpdateBuilder struct {
-	tableName string
-	alias     string
-	set       map[string]string
-	whereExpr []string
-	returning []string
+	tableName  string
+	alias      string
+	setColumns []string
+	setValues  []string
+	whereExpr  []string
+	returning  []string
 }
 
 func Update(rel string) *UpdateBuilder {
@@ -30,23 +31,20 @@ func (b *UpdateBuilder) As(alias string) *UpdateBuilder {
 	return b
 }
 
-func (b *UpdateBuilder) Set(col, val string) *UpdateBuilder {
-	if b.set == nil {
-		b.set = make(map[string]string)
-	}
-	b.set[col] = val
+func (b *UpdateBuilder) Set(column, val string) *UpdateBuilder {
+	b.setColumns = append(b.setColumns, column)
+	b.setValues = append(b.setValues, val)
 	return b
 }
 
 func (b *UpdateBuilder) SetMap(m map[string]string) *UpdateBuilder {
-	b.set = m
+	for col, val := range m {
+		b.Set(col, val)
+	}
 	return b
 }
 
 func (b *UpdateBuilder) Where(expr string, a ...interface{}) *UpdateBuilder {
-	if len(b.whereExpr) > 0 {
-		b.whereExpr = []string{}
-	}
 	return b.AndWhere(expr, a...)
 }
 
@@ -78,13 +76,13 @@ func (b *UpdateBuilder) ToSQL() string { // nolint:funlen
 		out.WriteString(" AS ")
 		out.WriteString(b.alias)
 	}
-	if len(b.set) > 0 {
+	if len(b.setColumns) > 0 {
 		out.WriteString(" SET ")
-		i := len(b.set) - 1
-		for c, v := range b.set {
+		i := len(b.setColumns) - 1
+		for j, c := range b.setColumns {
 			out.WriteString(c)
 			out.WriteString(" = ")
-			out.WriteString(v)
+			out.WriteString(b.setValues[j])
 			if i != 0 {
 				out.WriteString(comma)
 			}
@@ -92,28 +90,12 @@ func (b *UpdateBuilder) ToSQL() string { // nolint:funlen
 		}
 	}
 	if len(b.whereExpr) > 0 {
-		and := " AND "
-		out.WriteString(" WHERE ")
-		out.WriteString("(")
-		out.WriteString("(")
-		out.WriteString(b.whereExpr[0])
-		out.WriteString(")")
-		for _, s := range b.whereExpr[1:] {
-			out.WriteString(and)
-			out.WriteString("(")
-			out.WriteString(s)
-			out.WriteString(")")
-		}
-		out.WriteString(")")
+		out.WriteString(" WHERE " + strings.Join(b.whereExpr, " AND "))
 	}
 
 	if len(b.returning) > 0 {
-		out.WriteString(" RETURNING ")
-		out.WriteString(b.returning[0])
-		for _, s := range b.returning[1:] {
-			out.WriteString(comma)
-			out.WriteString(s)
-		}
+		out.WriteString(" RETURNING " + strings.Join(b.returning, ", "))
 	}
+
 	return out.String()
 }

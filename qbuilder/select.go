@@ -8,6 +8,55 @@ import (
 
 const selectBufferInitialGrowBytes = 200
 
+type SortDirection int
+
+const (
+	SortASC SortDirection = iota
+	SortDESC
+)
+
+func (d SortDirection) String() string {
+	return [...]string{"ASC", "DESC"}[d]
+}
+
+func SortDirFromString(d string) SortDirection {
+	if strings.ToLower(d) == SortDESC.String() {
+		return SortDESC
+	}
+	return SortASC
+}
+
+type rowLevelLockMode int
+
+const (
+	LockModeUpdate rowLevelLockMode = iota
+	LockModeUpdateNowait
+	LockModeShare
+	LockModeShareNowait
+	LockModeNoKeyUpdate
+	LockModeKeyShare
+	LockModeUpdateSkipLocked
+)
+
+func (m rowLevelLockMode) String() string {
+	return [...]string{
+		"UPDATE", "UPDATE NOWAIT", "SHARE", "SHARE NOWAIT", "NO KEY UPDATE", "KEY SHARE", "UPDATE SKIP LOCKED",
+	}[m]
+}
+
+type joinType string
+
+const (
+	JoinTypeLeft  = joinType("LEFT")
+	joinTypeRight = joinType("RIGHT")
+	joinTypeInner = joinType("INNER")
+	joinTypeCross = joinType("CROSS")
+)
+
+func (d joinType) String() string {
+	return string(d)
+}
+
 type SelectBuilder struct {
 	distinct     bool
 	subSelect    bool
@@ -93,9 +142,6 @@ func (b *SelectBuilder) ResetJoin() *SelectBuilder {
 }
 
 func (b *SelectBuilder) Where(expr string, a ...interface{}) *SelectBuilder {
-	if len(b.whereExpr) > 0 {
-		b.whereExpr = []string{}
-	}
 	return b.AndWhere(expr, a...)
 }
 
@@ -229,70 +275,34 @@ func (b *SelectBuilder) ToSQL() string { // nolint:funlen
 	if b.alias != "" {
 		out.WriteString(" AS ")
 		out.WriteString(b.alias)
-		out.WriteString(" ")
 	}
 
 	if len(b.join) > 0 {
-		for _, s := range b.join {
-			out.WriteString(s)
-			out.WriteString(" ")
-		}
+		out.WriteString(" " + strings.Join(b.join, " "))
 	}
 
 	if len(b.whereExpr) > 0 {
-		and := " AND "
-		out.WriteString(" WHERE (")
-		out.WriteString(b.whereExpr[0])
-		out.WriteString(")")
-		for _, s := range b.whereExpr[1:] {
-			out.WriteString(and)
-			out.WriteString("(")
-			out.WriteString(s)
-			out.WriteString(")")
-		}
+		out.WriteString(" WHERE " + wrapExpressions(b.whereExpr, " AND "))
 	}
 
 	if len(b.groupByExpr) > 0 {
-		out.WriteString(" GROUP BY ")
-		out.WriteString(b.groupByExpr[0])
-		for _, s := range b.groupByExpr[1:] {
-			out.WriteString(comma)
-			out.WriteString(s)
-		}
+		out.WriteString(" GROUP BY " + strings.Join(b.groupByExpr, ", "))
 	}
 
 	if len(b.havingExpr) > 0 {
-		out.WriteString(" HAVING ")
-		out.WriteString(b.havingExpr[0])
-		for _, s := range b.havingExpr[1:] {
-			out.WriteString(comma)
-			out.WriteString(s)
-		}
+		out.WriteString(" HAVING " + wrapExpressions(b.havingExpr, ", "))
 	}
 
 	if len(b.unionExpr) > 0 {
-		for _, s := range b.havingExpr {
-			out.WriteString(" UNION (")
-			out.WriteString(s)
-			out.WriteString(")")
-		}
+		out.WriteString(" UNION " + wrapExpressions(b.unionExpr, " UNION "))
 	}
 
 	if len(b.unionAllExpr) > 0 {
-		for _, s := range b.unionAllExpr {
-			out.WriteString(" UNION ALL (")
-			out.WriteString(s)
-			out.WriteString(")")
-		}
+		out.WriteString(" UNION ALL " + wrapExpressions(b.unionAllExpr, " UNION ALL "))
 	}
 
 	if len(b.orderByExpr) > 0 {
-		out.WriteString(" ORDER BY ")
-		out.WriteString(b.orderByExpr[0])
-		for _, s := range b.orderByExpr[1:] {
-			out.WriteString(comma)
-			out.WriteString(s)
-		}
+		out.WriteString(" ORDER BY " + strings.Join(b.orderByExpr, ", "))
 	}
 
 	if b.limit != "" {
@@ -315,6 +325,33 @@ func (b *SelectBuilder) ToSQL() string { // nolint:funlen
 	return out.String()
 }
 
+func (b *SelectBuilder) Copy() SelectBuilder {
+	return SelectBuilder{
+		distinct:     b.distinct,
+		subSelect:    b.subSelect,
+		selectExpr:   append([]string{}, b.selectExpr...),
+		alias:        b.alias,
+		fromExpr:     b.fromExpr,
+		join:         append([]string{}, b.join...),
+		whereExpr:    append([]string{}, b.whereExpr...),
+		groupByExpr:  append([]string{}, b.groupByExpr...),
+		havingExpr:   append([]string{}, b.havingExpr...),
+		unionExpr:    append([]string{}, b.unionExpr...),
+		unionAllExpr: append([]string{}, b.unionAllExpr...),
+		orderByExpr:  append([]string{}, b.orderByExpr...),
+		limit:        b.limit,
+		offset:       b.offset,
+		forExpr:      b.forExpr,
+	}
+}
+
 func AndX(exp ...string) string {
 	return strings.Join(exp, " AND ")
+}
+
+func wrapExpressions(expressions []string, separator string) string {
+	for i, expr := range expressions {
+		expressions[i] = "(" + expr + ")"
+	}
+	return strings.Join(expressions, separator)
 }
