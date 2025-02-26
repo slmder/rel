@@ -188,7 +188,7 @@ func NotIn(column string, args ...any) Expr {
 	}
 }
 
-func Any(column string, args []any) Expr {
+func Any(column string, args ...any) Expr {
 	return Expr{
 		op:     opAny,
 		column: column,
@@ -196,7 +196,7 @@ func Any(column string, args []any) Expr {
 	}
 }
 
-func NotAny(column string, args []any) Expr {
+func NotAll(column string, args ...any) Expr {
 	return Expr{
 		op:     opNotAll,
 		column: column,

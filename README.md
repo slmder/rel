@@ -1,3 +1,4 @@
+[![codecov](https://codecov.io/gh/slmder/rel/graph/badge.svg?token=K7Y8MN8V0H)](https://codecov.io/gh/slmder/rel)
 # Rel - Golang data access layer for postgres
 
 `Rel` is a package that provides a basic abstraction layer for working with relational databases in Go. It implements functionality similar to an ORM but uses low-level SQL queries, improving performance and flexibility.

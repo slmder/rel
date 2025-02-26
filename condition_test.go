@@ -3,6 +3,7 @@ package rel
 import (
 	"testing"
 
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,10 +21,42 @@ func TestConditions(t *testing.T) {
 			args:     []any{"Alice"},
 		},
 		{
+			name:     "Any",
+			cond:     Cond{Any("name", "Alice")},
+			expected: []string{"\"name\" = ANY $1"},
+			args:     []any{pq.Array([]any{"Alice"})},
+		},
+		{
+			name:     "Any",
+			cond:     Cond{Any("name", Identifier("user_names"))},
+			expected: []string{"\"name\" = ANY \"user_names\""},
+		},
+		{
+			name:     "NotAll",
+			cond:     Cond{NotAll("name", "Alice")},
+			expected: []string{"\"name\" <> ALL $1"},
+			args:     []any{pq.Array([]any{"Alice"})},
+		},
+		{
+			name:     "NotAll",
+			cond:     Cond{NotAll("name", Identifier("user_names"))},
+			expected: []string{"\"name\" <> ALL \"user_names\""},
+		},
+		{
+			name:     "Eq",
+			cond:     Cond{Eq("name", Identifier("user_name"))},
+			expected: []string{"\"name\" = \"user_name\""},
+		},
+		{
 			name:     "Neq",
 			cond:     Cond{Neq("age", 30)},
 			expected: []string{"\"age\" <> $1"},
 			args:     []any{30},
+		},
+		{
+			name:     "Neq",
+			cond:     Cond{Neq("age", Identifier("user_age"))},
+			expected: []string{"\"age\" <> \"user_age\""},
 		},
 		{
 			name:     "In",
@@ -56,10 +89,20 @@ func TestConditions(t *testing.T) {
 			args:     []any{50},
 		},
 		{
+			name:     "Gt",
+			cond:     Cond{Gt("score", Identifier("min_score"))},
+			expected: []string{"\"score\" > \"min_score\""},
+		},
+		{
 			name:     "Gte",
 			cond:     Cond{Gte("score", 75)},
 			expected: []string{"\"score\" >= $1"},
 			args:     []any{75},
+		},
+		{
+			name:     "Gte",
+			cond:     Cond{Gte("score", Identifier("max_score"))},
+			expected: []string{"\"score\" >= \"max_score\""},
 		},
 		{
 			name:     "Lt",
@@ -68,10 +111,20 @@ func TestConditions(t *testing.T) {
 			args:     []any{40},
 		},
 		{
+			name:     "Lt",
+			cond:     Cond{Lt("score", Identifier("max_score"))},
+			expected: []string{"\"score\" < \"max_score\""},
+		},
+		{
 			name:     "Lte",
 			cond:     Cond{Lte("score", 100)},
 			expected: []string{"\"score\" <= $1"},
 			args:     []any{100},
+		},
+		{
+			name:     "Lte",
+			cond:     Cond{Lte("score", Identifier("max_score"))},
+			expected: []string{"\"score\" <= \"max_score\""},
 		},
 		{
 			name:     "Between",
