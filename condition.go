@@ -32,6 +32,7 @@ const (
 	opBetween
 	opLike
 	opLikeLower
+	opContains
 )
 
 type Cond []Expr
@@ -137,6 +138,8 @@ func (c Cond) Split() ([]any, []string) {
 				continue
 			}
 			expr = append(expr, "LOWER("+column+") LIKE "+ArgsAdd(&args, strings.ToLower("%"+fmt.Sprint(e.arg[0])+"%")))
+		case opContains:
+			expr = append(expr, column+"  @> "+ArgsAdd(&args, pq.Array(e.arg)))
 		case opUnknown:
 		}
 	}
@@ -191,6 +194,14 @@ func NotIn(column string, args ...any) Expr {
 func Any(column string, args ...any) Expr {
 	return Expr{
 		op:     opAny,
+		column: column,
+		arg:    args,
+	}
+}
+
+func Contains(column string, args ...any) Expr {
+	return Expr{
+		op:     opContains,
 		column: column,
 		arg:    args,
 	}

@@ -38,6 +38,8 @@ type Relation[T any] struct {
 	deleteQ string
 	// findByQ is a prebuilt query to find entities by operator
 	findByQ qbuilder.SelectBuilder
+	// countByQ is a prebuilt query to count entities by operator
+	countByQ qbuilder.SelectBuilder
 }
 
 // NewRelation creates a new Relation instance for the given type and table.
@@ -62,6 +64,7 @@ func NewRelation[T any](name string, db *sql.DB, opts ...Option[T]) (*Relation[T
 	rel.deleteQ = buildDeleteQuery(rel.name, rel.M)
 	rel.getOneQ = buildGetOneQuery(rel.name, rel.M)
 	rel.findByQ = buildFindByQuery(rel.name, rel.M)
+	rel.countByQ = buildCountByQuery(rel.name, rel.M)
 
 	return rel, nil
 }
@@ -123,7 +126,7 @@ func (r *Relation[T]) Find(ctx context.Context, id ...any) (T, error) {
 }
 
 // FindBy finds all entities by given operator
-func (r *Relation[T]) FindBy(ctx context.Context, cond Cond) ([]T, error) {
+func (r *Relation[T]) FindBy(ctx context.Context, cond Cond, sort Sort) ([]T, error) {
 	var items []T
 	query := r.findByQ.Copy()
 	args, expr := cond.Split()
@@ -131,6 +134,11 @@ func (r *Relation[T]) FindBy(ctx context.Context, cond Cond) ([]T, error) {
 	if len(expr) > 0 {
 		for _, e := range expr {
 			query.AndWhere(e)
+		}
+	}
+	if len(sort) > 0 {
+		for _, s := range sort {
+			query.AndOrderBy(s.Column, s.Order)
 		}
 	}
 
@@ -149,6 +157,23 @@ func (r *Relation[T]) FindBy(ctx context.Context, cond Cond) ([]T, error) {
 	}
 
 	return items, nil
+}
+
+// CountBy counts all entities by given condition
+func (r *Relation[T]) CountBy(ctx context.Context, cond Cond) (int64, error) {
+	var count int64
+	query := r.countByQ.Copy()
+	args, expr := cond.Split()
+
+	if len(expr) > 0 {
+		for _, e := range expr {
+			query.AndWhere(e)
+		}
+	}
+
+	row := r.DB.QueryRowContext(ctx, query.ToSQL(), args...)
+
+	return count, row.Scan(&count)
 }
 
 // FindOneBy finds single entity by given operator
@@ -228,6 +253,14 @@ func buildGetOneQuery[T any](rel string, m *Metadata[T]) string {
 // buildFindByQuery prebuilds a query to find many entities
 func buildFindByQuery[T any](rel string, m *Metadata[T]) qbuilder.SelectBuilder {
 	qb := qbuilder.Select(m.Columns().Identifiers()...)
+	qb.From(rel)
+
+	return qb.Copy()
+}
+
+// buildFindByQuery prebuilds a query to find many entities
+func buildCountByQuery[T any](rel string, m *Metadata[T]) qbuilder.SelectBuilder {
+	qb := qbuilder.Select("COUNT(*)")
 	qb.From(rel)
 
 	return qb.Copy()

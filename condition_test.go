@@ -43,6 +43,12 @@ func TestConditions(t *testing.T) {
 			expected: []string{"\"name\" <> ALL \"user_names\""},
 		},
 		{
+			name:     "Contains",
+			cond:     Cond{Contains("name", 1, 2, 3)},
+			expected: []string{"\"name\"  @> $1"},
+			args:     []any{pq.Array([]any{1, 2, 3})},
+		},
+		{
 			name:     "Eq",
 			cond:     Cond{Eq("name", Identifier("user_name"))},
 			expected: []string{"\"name\" = \"user_name\""},

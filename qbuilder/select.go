@@ -8,22 +8,14 @@ import (
 
 const selectBufferInitialGrowBytes = 200
 
-type SortDirection int
-
 const (
-	SortASC SortDirection = iota
-	SortDESC
+	OrderASC  = "ASC"
+	OrderDESC = "DESC"
 )
 
-func (d SortDirection) String() string {
-	return [...]string{"ASC", "DESC"}[d]
-}
-
-func SortDirFromString(d string) SortDirection {
-	if strings.ToLower(d) == SortDESC.String() {
-		return SortDESC
-	}
-	return SortASC
+var allowedOrder = map[string]struct{}{
+	OrderASC:  {},
+	OrderDESC: {},
 }
 
 type rowLevelLockMode int
@@ -204,13 +196,16 @@ func (b *SelectBuilder) ResetHaving() *SelectBuilder {
 	return b
 }
 
-func (b *SelectBuilder) OrderBy(col string, dir SortDirection) *SelectBuilder {
-	b.orderByExpr = []string{col + " " + dir.String()}
+func (b *SelectBuilder) OrderBy(col string, order string) *SelectBuilder {
+	b.orderByExpr = []string{col + " " + order}
 	return b
 }
 
-func (b *SelectBuilder) AndOrderBy(col string, dir SortDirection) *SelectBuilder {
-	b.orderByExpr = append(b.orderByExpr, col+" "+dir.String())
+func (b *SelectBuilder) AndOrderBy(col string, order string) *SelectBuilder {
+	if _, ok := allowedOrder[order]; !ok {
+		return b
+	}
+	b.orderByExpr = append(b.orderByExpr, col+" "+order)
 	return b
 }
 

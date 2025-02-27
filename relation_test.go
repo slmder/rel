@@ -293,7 +293,7 @@ func TestRelationSerial_FindBy(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create mock db: %v", err)
 			}
-			eq := mock.ExpectQuery(regexp.QuoteMeta(`SELECT "created", "updated", "id", "name" FROM "entities" WHERE "name" = $1 AND "created" = $2`))
+			eq := mock.ExpectQuery(regexp.QuoteMeta(`SELECT "created", "updated", "id", "name" FROM "entities" WHERE "name" = $1 AND "created" = $2 ORDER BY name ASC, created DESC`))
 			eq.WithArgs(tt.entity.Name, tt.entity.Created)
 			eq.WillReturnRows(
 				sqlmock.NewRows([]string{"created", "updated", "id", "name"}).
@@ -307,6 +307,9 @@ func TestRelationSerial_FindBy(t *testing.T) {
 			ents, err := rel.FindBy(context.Background(), Cond{
 				Eq("name", tt.entity.Name),
 				Eq("created", tt.entity.Created),
+			}, Sort{
+				{"name", OrderAsc},
+				{"created", OrderDesc},
 			})
 			if !tt.expectErr && err != nil {
 				t.Fatalf("failed to save entitySerialID: %v", err)
@@ -632,7 +635,7 @@ func TestRelationComposite_FindBy(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create mock db: %v", err)
 			}
-			eq := mock.ExpectQuery(regexp.QuoteMeta(`SELECT "created", "updated", "id_a", "id_b", "name" FROM "entities" WHERE "name" = $1 AND "created" = $2`))
+			eq := mock.ExpectQuery(regexp.QuoteMeta(`SELECT "created", "updated", "id_a", "id_b", "name" FROM "entities" WHERE "name" = $1 AND "created" = $2 ORDER BY name ASC, created DESC`))
 			eq.WithArgs(tt.entity.Name, tt.entity.Created)
 			eq.WillReturnRows(
 				sqlmock.NewRows([]string{"created", "updated", "id_a", "id_b", "name"}).
@@ -646,6 +649,9 @@ func TestRelationComposite_FindBy(t *testing.T) {
 			ents, err := rel.FindBy(context.Background(), Cond{
 				Eq("name", tt.entity.Name),
 				Eq("created", tt.entity.Created),
+			}, Sort{
+				{"name", OrderAsc},
+				{"created", OrderDesc},
 			})
 			if !tt.expectErr && err != nil {
 				t.Fatalf("failed to save entityCompositeID: %v", err)

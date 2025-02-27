@@ -50,7 +50,7 @@ func TestSelectBuilder_ToSQL(t *testing.T) {
 		},
 		{
 			name:     "SELECT with ORDER BY",
-			builder:  Select("id").From("users").OrderBy("created_at", SortASC),
+			builder:  Select("id").From("users").OrderBy("created_at", OrderASC),
 			expected: "SELECT id FROM users ORDER BY created_at ASC",
 		},
 		{
