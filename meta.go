@@ -9,6 +9,8 @@ import (
 	"github.com/lib/pq"
 )
 
+const maxRecursionDepth = 10
+
 var metaCache sync.Map
 
 // ColumnMeta represents a column metadata.
@@ -37,8 +39,15 @@ func (m ListColumnMeta) Identifiers() []string {
 
 // Names returns a list of unquoted column Names.
 func (m ListColumnMeta) Names() []string {
+	if len(m) == 0 {
+		return nil
+	}
 	res := make([]string, len(m))
 	for i, cm := range m {
+		if cm == nil {
+			res[i] = ""
+			continue
+		}
 		res[i] = cm.name
 	}
 	return res
@@ -86,9 +95,17 @@ func NewMeta[T any](pkStrategy PKStrategy, pk ...string) (*Metadata[T], error) {
 		return nil, errors.New("no primary key specified")
 	}
 
-	typeName := reflect.TypeOf((*T)(nil)).Elem().String()
+	t := reflect.TypeOf((*T)(nil)).Elem()
+	if t.Kind() != reflect.Struct && !(t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Struct) {
+		return nil, fmt.Errorf("type %s is not a struct or a pointer to a struct", t.String())
+	}
+
+	typeName := t.String()
 	if cached, ok := metaCache.Load(typeName); ok {
-		return cached.(*Metadata[T]), nil
+		if metadata, ok := cached.(*Metadata[T]); ok {
+			return metadata, nil
+		}
+		metaCache.Delete(typeName)
 	}
 
 	m := &Metadata[T]{pkStrategy: pkStrategy}
@@ -105,7 +122,10 @@ func NewMeta[T any](pkStrategy PKStrategy, pk ...string) (*Metadata[T], error) {
 	m.updateColumns = updateColumns(m.columns)
 	m.columnsMap = columnsMetaMap(m.columns)
 
-	metaCache.Store(typeName, m)
+	actual, loaded := metaCache.LoadOrStore(typeName, m)
+	if loaded {
+		return actual.(*Metadata[T]), nil
+	}
 
 	return m, nil
 }
@@ -126,19 +146,27 @@ func columnsMeta[T any](pk ...string) ([]*ColumnMeta, error) {
 	var metas []*ColumnMeta
 
 	// collectMeta recursively collects column metadata.
-	var collectMeta func(reflect.Type, []int)
-	collectMeta = func(t reflect.Type, parentPath []int) {
+	var collectMeta func(reflect.Type, []int, int) error
+	collectMeta = func(t reflect.Type, parentPath []int, depth int) error {
+		if depth > maxRecursionDepth {
+			return fmt.Errorf("max recursion depth exceeded: %d", maxRecursionDepth)
+		}
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			fieldPath := append(parentPath, i)
 
 			// check if the column is anonymous struct
 			if field.Anonymous && field.Type.Kind() == reflect.Struct {
-				collectMeta(field.Type, fieldPath)
+				if err := collectMeta(field.Type, fieldPath, depth+1); err != nil {
+					return err
+				}
 				continue
 			}
 
 			if tag, ok := field.Tag.Lookup("db"); ok {
+				if !isValidColumnName(tag) {
+					return fmt.Errorf("invalid column: %s", tag)
+				}
 				isPk := false
 				for _, p := range pk {
 					if p == tag {
@@ -153,10 +181,10 @@ func columnsMeta[T any](pk ...string) ([]*ColumnMeta, error) {
 				})
 			}
 		}
+		return nil
 	}
 
-	collectMeta(t, nil)
-	return metas, nil
+	return metas, collectMeta(t, nil, 0)
 }
 
 // columnsMetaMap returns a map of column metadata by name.
@@ -195,4 +223,37 @@ func filter(columns ListColumnMeta, f func(*ColumnMeta) bool) ListColumnMeta {
 		}
 	}
 	return res
+}
+
+func isValidColumnName(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	// Check for maximum length (for PostgreSQL it's usually 63 characters)
+	if len(name) > 63 {
+		return false
+	}
+
+	// First character must be a letter or underscore
+	firstChar := name[0]
+	if !((firstChar >= 'a' && firstChar <= 'z') ||
+		(firstChar >= 'A' && firstChar <= 'Z') ||
+		firstChar == '_') {
+		return false
+	}
+
+	// Check other characters
+	for i := 1; i < len(name); i++ {
+		c := name[i]
+		// PostgreSQL identifiers allow letters, digits, $ and _
+		if !((c >= 'a' && c <= 'z') ||
+			(c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') ||
+			c == '_' || c == '$') {
+			return false
+		}
+	}
+
+	return true
 }

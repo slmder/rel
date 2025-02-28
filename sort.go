@@ -21,25 +21,34 @@ func ParseSort(query string, allowed map[string]struct{}) Sort {
 	if query == "" {
 		return sort
 	}
+
 	parts := strings.Split(query, ",")
 	for _, part := range parts {
+		if part = strings.TrimSpace(part); part == "" {
+			continue
+		}
+
 		pair := strings.Split(part, ":")
+		if len(pair) == 0 {
+			continue
+		}
+
 		key := strings.TrimSpace(pair[0])
 		if key == "" {
 			continue
 		}
-		order := OrderAsc
-		switch {
-		case len(pair) > 1 && strings.TrimSpace(strings.ToLower(pair[1])) == "desc":
-			order = OrderDesc
-		default:
-			order = OrderAsc
-		}
+
 		if len(allowed) > 0 {
 			if _, exists := allowed[key]; !exists {
 				continue
 			}
 		}
+
+		order := OrderAsc
+		if len(pair) > 1 && strings.EqualFold(strings.TrimSpace(pair[1]), "desc") {
+			order = OrderDesc
+		}
+
 		sort = append(sort, ColumnOrder{key, order})
 	}
 	return sort
