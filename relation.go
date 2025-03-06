@@ -142,11 +142,11 @@ func (r *Relation[T]) FindBy(ctx context.Context, cond Cond, sort Sort, pag Pagi
 		}
 	}
 
-	if limit := pag.Limit(); limit > 0 {
+	if limit := pag.ComputeLimit(); limit > 0 {
 		query.Limit(limit)
 	}
 
-	if offset := pag.Offset(); offset > 0 {
+	if offset := pag.ComputeOffset(); offset > 0 {
 		query.Offset(offset)
 	}
 

@@ -10,33 +10,29 @@ var (
 
 // Pagination represents the pagination options
 type Pagination struct {
-	lim uint32
-	pag uint32
+	Limit uint32
+	Page  uint32
 }
 
-// Limit sets the limit
-func (p Pagination) Limit() uint32 {
-	if p.lim <= 0 {
+// ComputeOffset returns the offset
+func (p Pagination) ComputeOffset() uint32 {
+	if p.Page <= 1 {
 		return 0
 	}
 
-	if p.lim > PaginationDefaultMaxLimit {
-		return PaginationDefaultMaxLimit
-	}
-
-	return p.lim
+	return (p.Page - 1) * p.Limit
 }
 
-// Offset returns the offset
-func (p Pagination) Offset() uint32 {
-	if p.pag <= 1 {
+// ComputeLimit returns the limit
+func (p Pagination) ComputeLimit() uint32 {
+	if p.Limit < 1 {
 		return 0
 	}
 
-	return (p.pag - 1) * p.Limit()
+	return p.Limit
 }
 
-// ParsePagination parses the pag and lim from the request query string
+// ParsePagination parses the Page and Limit from the request query string
 func ParsePagination(page, limit string) Pagination {
 	pag, err := strconv.ParseUint(page, 10, 32)
 	if err != nil {
@@ -47,7 +43,7 @@ func ParsePagination(page, limit string) Pagination {
 		lim = 0
 	}
 	return Pagination{
-		lim: uint32(lim),
-		pag: uint32(pag),
+		Limit: uint32(lim),
+		Page:  uint32(pag),
 	}
 }
