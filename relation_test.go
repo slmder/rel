@@ -310,7 +310,7 @@ func TestRelationSerial_FindBy(t *testing.T) {
 			}, Sort{
 				{"name", OrderAsc},
 				{"created", OrderDesc},
-			})
+			}, Pagination{})
 			if !tt.expectErr && err != nil {
 				t.Fatalf("failed to save entitySerialID: %v", err)
 			}
@@ -652,7 +652,7 @@ func TestRelationComposite_FindBy(t *testing.T) {
 			}, Sort{
 				{"name", OrderAsc},
 				{"created", OrderDesc},
-			})
+			}, Pagination{})
 			if !tt.expectErr && err != nil {
 				t.Fatalf("failed to save entityCompositeID: %v", err)
 			}

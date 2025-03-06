@@ -126,7 +126,7 @@ func (r *Relation[T]) Find(ctx context.Context, id ...any) (T, error) {
 }
 
 // FindBy finds all entities by given operator
-func (r *Relation[T]) FindBy(ctx context.Context, cond Cond, sort Sort) ([]T, error) {
+func (r *Relation[T]) FindBy(ctx context.Context, cond Cond, sort Sort, pag Pagination) ([]T, error) {
 	var items []T
 	query := r.findByQ.Copy()
 	args, expr := cond.Split()
@@ -140,6 +140,14 @@ func (r *Relation[T]) FindBy(ctx context.Context, cond Cond, sort Sort) ([]T, er
 		for _, s := range sort {
 			query.AndOrderBy(s.Column, s.Order)
 		}
+	}
+
+	if limit := pag.Limit(); limit > 0 {
+		query.Limit(limit)
+	}
+
+	if offset := pag.Offset(); offset > 0 {
+		query.Offset(offset)
 	}
 
 	rows, err := r.DB.QueryContext(ctx, query.ToSQL(), args...)
